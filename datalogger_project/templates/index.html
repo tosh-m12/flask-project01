@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>温湿度モニター</title>
+    <script>
+        const intervalSeconds = {{ interval }};  // Flask から渡された変数を使う
+
+        async function fetchData() {
+            try {
+                const res = await fetch('/data');
+                const devices = await res.json();
+                const tbody = document.getElementById('device-table');
+                tbody.innerHTML = '';
+                devices.forEach(d => {
+                    const row = `<tr>
+                        <td>${d.id}</td>
+                        <td>${d.name}</td>
+                        <td>${d.temperature}</td>
+                        <td>${d.humidity}</td>
+                        <td>${d.online ? 'オンライン' : 'オフライン'}</td>
+                        <td>${d.last_seen}</td>
+                    </tr>`;
+                    tbody.innerHTML += row;
+                });
+            } catch (err) {
+                console.error('エラー:', err);
+            }
+        }
+
+        setInterval(fetchData, intervalSeconds * 1000);  // ← 動的に設定
+        window.onload = fetchData;
+    </script>
+</head>
+<body>
+    <h1>温湿度モニター</h1>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>デバイスID</th>
+                <th>名前</th>
+                <th>温度</th>
+                <th>湿度</th>
+                <th>状態</th>
+                <th>最終更新</th>
+            </tr>
+        </thead>
+        <tbody id="device-table">
+            <!-- データ挿入される -->
+        </tbody>
+    </table>
+    <p><a href="{{ url_for('settings') }}">設定ページへ</a></p>
+</body>
+</html>

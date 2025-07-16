@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>倉庫割当設定</title>
+</head>
+<body>
+    <h1>倉庫割当 & 更新間隔設定</h1>
+
+    <form method="post">
+        <label>更新間隔（秒）:</label>
+        <input type="number" name="interval" value="{{ interval }}" min="1" required>
+        <br><br>
+
+        {% for device_id in device_ids %}
+            <label>{{ device_id }}</label>
+            <select name="{{ device_id }}">
+                <option value="" {% if assignments.get(device_id) == "" %}selected{% endif %}>未設定</option>
+                <option value="A" {% if assignments.get(device_id) == "A" %}selected{% endif %}>倉庫A</option>
+                <option value="B" {% if assignments.get(device_id) == "B" %}selected{% endif %}>倉庫B</option>
+                <option value="C" {% if assignments.get(device_id) == "C" %}selected{% endif %}>倉庫C</option>
+            </select>
+            <br>
+        {% endfor %}
+
+        <br>
+        <button type="submit">保存して戻る</button>
+    </form>
+
+    <p><a href="{{ url_for('index') }}">キャンセルして戻る</a></p>
+</body>
+</html>

@@ -1,0 +1,14 @@
+# 仮想環境除外
+myvenv/
+
+# Pythonキャッシュ除外
+__pycache__/
+*.pyc
+
+# JSON設定ファイル（必要に応じて）
+settings.json
+device_assignments.json
+
+# その他
+*.log
+.env
