@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>倉庫名の編集</title>
+    <script>
+        function addRow() {
+            const list = document.getElementById("warehouse-list");
+            const count = list.children.length;
+            const newInput = document.createElement("div");
+            newInput.innerHTML = `
+                <input type="text" name="warehouse_${count}" placeholder="倉庫名">
+                <button type="button" onclick="removeRow(this)">削除</button>
+                <br>
+            `;
+            list.appendChild(newInput);
+        }
+
+        function removeRow(button) {
+            button.parentElement.remove();
+        }
+    </script>
+</head>
+<body>
+    <h1>倉庫名の編集</h1>
+
+    <form method="post">
+        <div id="warehouse-list">
+            {% for i in range(warehouses|length) %}
+                <div>
+                    <input type="text" name="warehouse_{{ i }}" value="{{ warehouses[i] }}" placeholder="倉庫名">
+                    <button type="button" onclick="removeRow(this)">削除</button>
+                    <br>
+                </div>
+            {% endfor %}
+        </div>
+
+        <button type="button" onclick="addRow()">＋ 倉庫追加</button>
+        <br><br>
+        <button type="submit">保存</button>
+    </form>
+
+    <p><a href="{{ url_for('settings') }}">戻る</a></p>
+</body>
+</html>

@@ -12,7 +12,9 @@ ACCOUNT = "nglswhs47"
 PASSWORD = "ngls1234"
 
 ASSIGNMENT_FILE = "device_assignments.json"
-SETTINGS_FILE = "settings.json"  # ← 更新間隔など保存
+SETTINGS_FILE = "settings.json"
+WAREHOUSE_FILE = "warehouse_names.json"
+
 
 def login_and_get_token():
     payload = {
@@ -25,6 +27,7 @@ def login_and_get_token():
     response = requests.post(LOGIN_URL, json=payload, headers=headers)
     result = response.json()
     return result["data"]["accessToken"], result["data"]["userId"]
+
 
 def fetch_all_devices(token, user_id):
     all_devices = []
@@ -68,67 +71,118 @@ def save_device_assignments(assignments):
     with open(ASSIGNMENT_FILE, "w", encoding="utf-8") as f:
         json.dump(assignments, f, ensure_ascii=False, indent=2)
 
-def load_settings():
-    if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+def load_json(filename, default):
+    if os.path.exists(filename):
+        with open(filename, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {"interval": 10}
+    return default
 
-def save_settings(settings):
-    with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-        json.dump(settings, f, ensure_ascii=False, indent=2)
+
+def save_json(filename, data):
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+WAREHOUSE_FILE = "warehouses.json"
+
+def load_warehouse_names():
+    if os.path.exists(WAREHOUSE_FILE):
+        with open(WAREHOUSE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return ["倉庫A", "倉庫B", "倉庫C"]
 
 @app.route("/")
 def index():
-    settings_data = load_settings()
-    interval = settings_data.get("interval", 10)
-    return render_template("index.html", interval=interval)
+    settings = load_json(SETTINGS_FILE, {"interval": 10})
+    return render_template("index.html", interval=settings.get("interval", 10))
+
 
 @app.route("/data")
 def data():
     try:
         token, user_id = login_and_get_token()
         devices = fetch_all_devices(token, user_id)
-        assignments = load_device_assignments()
+        assignments = load_json(ASSIGNMENT_FILE, {})
         for device in devices:
             device["warehouse"] = assignments.get(device["id"], "")
         return jsonify(devices)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/settings", methods=["GET", "POST"])
 def settings():
+    settings = load_json(SETTINGS_FILE, {"interval": 10})
+    if request.method == "POST":
+        interval = int(request.form.get("interval", 10))
+        settings["interval"] = interval
+        save_json(SETTINGS_FILE, settings)
+        return redirect(url_for("index"))
+    return render_template("settings.html", interval=settings.get("interval", 10))
+
+
+@app.route("/warehouse_assign", methods=["GET", "POST"])
+def warehouse_assign():
     try:
         token, user_id = login_and_get_token()
         devices = fetch_all_devices(token, user_id)
-        device_ids = [d["id"] for d in devices]
+        all_device_ids = [d["id"] for d in devices]
+        device_names = {d["id"]: d["name"] for d in devices}
+
+        warehouse_names = load_warehouse_names()
         assignments = load_device_assignments()
-        settings_data = load_settings()
 
         if request.method == "POST":
-            # 更新間隔
-            interval = int(request.form.get("interval", 10))
+            assignments_json = request.form.get("assignments_json")
+            if assignments_json:
+                new_assignments = json.loads(assignments_json)
+                save_device_assignments(new_assignments)
+            return redirect(url_for("settings"))
 
-            # 倉庫割当の保存
-            for device_id in device_ids:
-                selected = request.form.get(device_id, "")
-                if selected:
-                    assignments[device_id] = selected
-                elif device_id in assignments:
-                    del assignments[device_id]
+        # 表示用データの構成（GET時）
+        warehouse_to_devices = {wh: [] for wh in warehouse_names}
+        unassigned_devices = []
 
-            save_device_assignments(assignments)
-            save_settings({"interval": interval})
-            return redirect(url_for("index"))
+        for device_id in all_device_ids:
+            warehouse = assignments.get(device_id)
+            if warehouse in warehouse_to_devices:
+                warehouse_to_devices[warehouse].append({
+                    "id": device_id,
+                    "name": device_names.get(device_id, "")
+                })
+            else:
+                unassigned_devices.append({
+                    "id": device_id,
+                    "name": device_names.get(device_id, "")
+                })
 
         return render_template(
-            "settings.html",
-            device_ids=device_ids,
-            assignments=assignments,
-            interval=settings_data.get("interval", 10)
+            "warehouse_assign.html",
+            warehouses=warehouse_names,               # 倉庫名のリスト
+            assignments=assignments,                  # デバイスID → 倉庫名 の dict
+            unassigned=[d["id"] for d in unassigned_devices],  # 割り当てなしIDリスト
+            assignments_json=json.dumps(assignments, ensure_ascii=False)
         )
     except Exception as e:
         return f"エラー: {e}", 500
+
+
+@app.route("/warehouse_names", methods=["GET", "POST"])
+def warehouse_names():
+    warehouses = load_json(WAREHOUSE_FILE, ["A", "B", "C"])
+
+    if request.method == "POST":
+        new_warehouses = []
+        for key in request.form:
+            if key.startswith("warehouse_"):
+                name = request.form.get(key, "").strip()
+                if name:
+                    new_warehouses.append(name)
+        save_json(WAREHOUSE_FILE, new_warehouses)
+        return redirect(url_for("settings"))
+
+    return render_template("warehouse_names.html", warehouses=warehouses)
+
+
 
 if __name__ == "__main__":
     app.run(debug=True)
