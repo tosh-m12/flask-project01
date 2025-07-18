@@ -2,53 +2,82 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>温湿度モニター</title>
+    <title>温湿度モニター（倉庫別）</title>
+    <style>
+        table { border-collapse: collapse; margin-bottom: 30px; width: 100%; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+        h2 { background-color: #f0f0f0; padding: 8px; }
+    </style>
     <script>
-        const intervalSeconds = {{ interval }};  // Flask から渡された変数を使う
-
+        const intervalSeconds = {{ interval }};  // Flask から渡された変数
         async function fetchData() {
             try {
                 const res = await fetch('/data');
                 const devices = await res.json();
-                const tbody = document.getElementById('device-table');
-                tbody.innerHTML = '';
+
+                const warehouseDevices = {};
+
+                // 倉庫ごとにテーブルを再構成
                 devices.forEach(d => {
-                    const row = `<tr>
-                        <td>${d.id}</td>
-                        <td>${d.name}</td>
-                        <td>${d.temperature}</td>
-                        <td>${d.humidity}</td>
-                        <td>${d.online ? 'オンライン' : 'オフライン'}</td>
-                        <td>${d.last_seen}</td>
-                    </tr>`;
-                    tbody.innerHTML += row;
+                    if (!d.warehouse) return;  // 未割当は除外
+                    if (!warehouseDevices[d.warehouse]) {
+                        warehouseDevices[d.warehouse] = [];
+                    }
+                    warehouseDevices[d.warehouse].push(d);
                 });
+
+                // 全テーブル領域をクリア
+                const container = document.getElementById("tables-container");
+                container.innerHTML = "";
+
+                // 倉庫ごとにテーブルを作成
+                for (const [warehouse, devs] of Object.entries(warehouseDevices)) {
+                    const section = document.createElement("section");
+                    section.innerHTML = `
+                        <h2>${warehouse}</h2>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>シリアルナンバー</th>
+                                    <th>温度</th>
+                                    <th>湿度</th>
+                                    <th>最終更新</th>
+                                    <th>状態</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${devs.map(d => `
+                                    <tr>
+                                        <td>${d.id}</td>
+                                        <td>${d.temperature}</td>
+                                        <td>${d.humidity}</td>
+                                        <td>${d.last_seen}</td>
+                                        <td>${d.online ? "●" : "×"}</td>
+                                    </tr>
+                                `).join("")}
+                            </tbody>
+                        </table>
+                    `;
+                    container.appendChild(section);
+                }
+
             } catch (err) {
-                console.error('エラー:', err);
+                console.error("データ取得エラー:", err);
             }
         }
 
-        setInterval(fetchData, intervalSeconds * 1000);  // ← 動的に設定
+        setInterval(fetchData, intervalSeconds * 1000);
         window.onload = fetchData;
     </script>
 </head>
 <body>
-    <h1>温湿度モニター</h1>
-    <table border="1">
-        <thead>
-            <tr>
-                <th>デバイスID</th>
-                <th>名前</th>
-                <th>温度</th>
-                <th>湿度</th>
-                <th>状態</th>
-                <th>最終更新</th>
-            </tr>
-        </thead>
-        <tbody id="device-table">
-            <!-- データ挿入される -->
-        </tbody>
-    </table>
+    <h1>温湿度モニター（倉庫別）</h1>
+
+    <div id="tables-container">
+        <!-- JSでテーブルが挿入されます -->
+    </div>
+
+    <p><a href="{{ url_for('all_devices') }}">全デバイス稼働状況一覧ページへ</a></p>
     <p><a href="{{ url_for('settings') }}">設定ページへ</a></p>
 </body>
 </html>

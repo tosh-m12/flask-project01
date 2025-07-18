@@ -4,48 +4,102 @@
     <meta charset="UTF-8">
     <title>倉庫ごとのデバイス割当</title>
     <style>
-        .warehouse-block { margin-bottom: 30px; border: 1px solid #ccc; padding: 10px; }
-        .device-list { min-height: 40px; border: 1px dashed #aaa; padding: 5px; }
+        .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .warehouse-area {
+            flex: 1;
+            margin-right: 30px;
+        }
+
+        .unassigned-area {
+            width: 200px;
+        }
+
+        .warehouse-block {
+            margin-bottom: 30px;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+
+        .device-list {
+            min-height: 40px;
+            border: 1px dashed #aaa;
+            padding: 5px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-start;  /* タグを左詰めに配置 */
+            align-items: flex-start;
+        }
+
         .device-tag {
-            display: inline-block;
+            width: 170px;
+            text-align: center;
             padding: 5px 10px;
             margin: 5px;
             background: #e0f7fa;
             border: 1px solid #00796b;
             border-radius: 5px;
             cursor: move;
+            user-select: none;
+        }
+
+        .external-block {
+            width: 220px;
         }
     </style>
 </head>
 <body>
     <h1>倉庫ごとのデバイス割当</h1>
-    <form method="post" id="assignForm">
-        {% for warehouse in warehouses %}
-        <div class="warehouse-block">
-            <h3>{{ warehouse }}</h3>
-            <div class="device-list" ondrop="drop(event, '{{ warehouse }}')" ondragover="allowDrop(event)" id="warehouse-{{ loop.index }}">
-                {% for device_id, assigned_warehouse in assignments.items() %}
-                    {% if assigned_warehouse == warehouse %}
-                        <span class="device-tag" draggable="true" ondragstart="drag(event)" id="device-{{ device_id }}">{{ device_id }}</span>
-                    {% endif %}
-                {% endfor %}
-            </div>
-        </div>
-        {% endfor %}
 
-        <h3>割り当てなし</h3>
-        <div class="device-list" ondrop="drop(event, '')" ondragover="allowDrop(event)" id="unassigned">
-            {% for device_id in unassigned %}
-                <span class="device-tag" draggable="true" ondragstart="drag(event)" id="device-{{ device_id }}">{{ device_id }}</span>
+    <div class="container">
+        <div class="warehouse-area">
+            {% for warehouse in warehouses %}
+            <div class="warehouse-block" style="display: flex; justify-content: space-between;">
+                <div style="flex: 1; margin-right: 20px;">
+                    <h3>{{ warehouse }}</h3>
+                    <div class="device-list" ondrop="drop(event, '{{ warehouse }}')" ondragover="allowDrop(event)" id="warehouse-{{ loop.index }}">
+                        {% for device_id, assigned_warehouse in assignments.items() %}
+                            {% if assigned_warehouse == warehouse %}
+                                <span class="device-tag" draggable="true" ondragstart="drag(event)" id="device-{{ device_id }}">{{ device_id }}</span>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="external-block">
+                    <h4>外気測定用</h4>
+                    <div class="device-list" ondrop="drop(event, 'external_{{ warehouse }}')" ondragover="allowDrop(event)" id="external-{{ loop.index }}">
+                        {% for device_id, assigned_warehouse in assignments.items() %}
+                            {% if assigned_warehouse == ('external_' ~ warehouse) %}
+                                <span class="device-tag" draggable="true" ondragstart="drag(event)" id="device-{{ device_id }}">{{ device_id }}</span>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
             {% endfor %}
         </div>
 
-        <input type="hidden" name="assignments_json" id="assignments_json">
-        <br>
-        <button type="submit">保存して戻る</button>
-    </form>
+        <div class="unassigned-area">
+            <h3>割り当てなし</h3>
+            <div class="device-list"
+                ondrop="drop(event, '')"
+                ondragover="allowDrop(event)"
+                id="unassigned">
+                {% for device_id in unassigned|sort %}
+                    <span class="device-tag"
+                          draggable="true"
+                          ondragstart="drag(event)"
+                          id="device-{{ device_id }}">{{ device_id }}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
 
-    <p><a href="{{ url_for('settings') }}">キャンセルして戻る</a></p>
+    <p><a href="{{ url_for('settings') }}">戻る</a></p>
 
     <script>
         let assignments = {{ assignments_json|safe }};
@@ -62,19 +116,30 @@
             ev.preventDefault();
             const deviceId = ev.dataTransfer.getData("text");
             const element = document.getElementById(deviceId);
+
+            // タグの上にはドロップさせない
+            if (ev.target.classList.contains('device-tag')) {
+                return;
+            }
+
+            // ドロップ先に移動
             ev.target.appendChild(element);
 
-            // Update assignment
+            // 割り当て更新
             const id = deviceId.replace('device-', '');
-            assignments[id] = warehouse;
-            updateAssignmentsInput();
-        }
+            if (warehouse === '') {
+                delete assignments[id];
+            } else {
+                assignments[id] = warehouse;
+            }
 
-        function updateAssignmentsInput() {
-            document.getElementById("assignments_json").value = JSON.stringify(assignments);
+            // AJAXで保存
+            fetch('/save_assignment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(assignments)
+            });
         }
-
-        window.onload = updateAssignmentsInput;
     </script>
 </body>
 </html>

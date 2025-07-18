@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>全デバイス稼働状況一覧</title>
+    <style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>全デバイス稼働状況一覧</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>シリアルナンバー</th>
+                <th>倉庫</th>
+                <th>温度</th>
+                <th>湿度</th>
+                <th>最終更新</th>
+                <th>状態</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in devices %}
+                <tr>
+                    <td>{{ d.id }}</td>
+                    <td>{{ d.warehouse or "未割り当て" }}</td>
+                    <td>{{ d.temperature }}</td>
+                    <td>{{ d.humidity }}</td>
+                    <td>{{ d.last_seen }}</td>
+                    <td>{{ "●" if d.online else "×" }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p><a href="{{ url_for('index') }}">倉庫別モニターへ戻る</a></p>
+</body>
+</html>

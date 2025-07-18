@@ -92,8 +92,26 @@ def load_warehouse_names():
 
 @app.route("/")
 def index():
-    settings = load_json(SETTINGS_FILE, {"interval": 10})
-    return render_template("index.html", interval=settings.get("interval", 10))
+    try:
+        token, user_id = login_and_get_token()
+        devices = fetch_all_devices(token, user_id)
+        assignments = load_device_assignments()
+        warehouses = load_warehouse_names()
+        settings = load_json(SETTINGS_FILE, {"interval": 10})
+
+        warehouse_devices = {wh: [] for wh in warehouses}
+        for d in devices:
+            wh = assignments.get(d["id"])
+            if wh in warehouse_devices:
+                warehouse_devices[wh].append(d)
+
+        return render_template(
+            "index.html", 
+            warehouse_devices=warehouse_devices,
+            interval=settings.get("interval", 10)
+        )
+    except Exception as e:
+        return f"エラー: {e}", 500
 
 
 @app.route("/data")
@@ -166,22 +184,62 @@ def warehouse_assign():
         return f"エラー: {e}", 500
 
 
+@app.route("/all_devices")
+def all_devices():
+    try:
+        token, user_id = login_and_get_token()
+        devices = fetch_all_devices(token, user_id)
+        assignments = load_device_assignments()
+        for device in devices:
+            device["warehouse"] = assignments.get(device["id"], "")
+        return render_template("all_devices.html", devices=devices)
+    except Exception as e:
+        return f"エラー: {e}", 500
+
+
+@app.route("/save_assignment", methods=["POST"])
+def save_assignment():
+    data = request.get_json()
+    save_device_assignments(data)
+    return jsonify({"status": "ok"})
+
+
 @app.route("/warehouse_names", methods=["GET", "POST"])
 def warehouse_names():
-    warehouses = load_json(WAREHOUSE_FILE, ["A", "B", "C"])
+    # 現在の倉庫名一覧と割当データを読み込み
+    current_warehouses = load_json(WAREHOUSE_FILE, ["A", "B", "C"])
+    assignments = load_device_assignments()
 
     if request.method == "POST":
+        # 新しく保存する倉庫名を抽出
         new_warehouses = []
         for key in request.form:
             if key.startswith("warehouse_"):
                 name = request.form.get(key, "").strip()
                 if name:
                     new_warehouses.append(name)
+
+        # 消えた倉庫名（削除されたもの）を検出
+        deleted_warehouses = {
+            wh for wh in assignments.values()
+            if wh not in new_warehouses and not wh.startswith("external_")
+        } | {
+            f"external_{wh}" for wh in current_warehouses if wh not in new_warehouses
+        }
+
+        # ← ここを追加
+        updated_assignments = {
+            device_id: warehouse
+            for device_id, warehouse in assignments.items()
+            if warehouse not in deleted_warehouses
+        }
+
         save_json(WAREHOUSE_FILE, new_warehouses)
+        save_device_assignments(updated_assignments)
+
         return redirect(url_for("settings"))
 
-    return render_template("warehouse_names.html", warehouses=warehouses)
-
+    return render_template("warehouse_names.html", warehouses=current_warehouses)
 
 
 if __name__ == "__main__":
