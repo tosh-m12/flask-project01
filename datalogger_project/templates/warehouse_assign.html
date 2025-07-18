@@ -31,11 +31,12 @@
             padding: 5px;
             display: flex;
             flex-wrap: wrap;
-            justify-content: flex-start;  /* タグを左詰めに配置 */
+            justify-content: flex-start;
             align-items: flex-start;
         }
 
         .device-tag {
+            position: relative;
             width: 170px;
             text-align: center;
             padding: 5px 10px;
@@ -47,8 +48,35 @@
             user-select: none;
         }
 
+        .device-tag:hover .remove-btn {
+            display: block;
+        }
+
+        .remove-btn {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: #ff5555;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 5px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            display: none;
+        }
+
         .external-block {
             width: 220px;
+        }
+
+        .placeholder {
+            width: 170px;
+            height: 30px;
+            margin: 5px;
+            border: 2px dashed #aaa;
+            border-radius: 5px;
+            background-color: #f0f0f0;
         }
     </style>
 </head>
@@ -61,23 +89,11 @@
             <div class="warehouse-block" style="display: flex; justify-content: space-between;">
                 <div style="flex: 1; margin-right: 20px;">
                     <h3>{{ warehouse }}</h3>
-                    <div class="device-list" ondrop="drop(event, '{{ warehouse }}')" ondragover="allowDrop(event)" id="warehouse-{{ loop.index }}">
-                        {% for device_id, assigned_warehouse in assignments.items() %}
-                            {% if assigned_warehouse == warehouse %}
-                                <span class="device-tag" draggable="true" ondragstart="drag(event)" id="device-{{ device_id }}">{{ device_id }}</span>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
+                    <div class="device-list" ondrop="drop(event, '{{ warehouse }}')" ondragover="allowDrop(event)" id="warehouse-{{ loop.index }}"></div>
                 </div>
                 <div class="external-block">
                     <h4>外気測定用</h4>
-                    <div class="device-list" ondrop="drop(event, 'external_{{ warehouse }}')" ondragover="allowDrop(event)" id="external-{{ loop.index }}">
-                        {% for device_id, assigned_warehouse in assignments.items() %}
-                            {% if assigned_warehouse == ('external_' ~ warehouse) %}
-                                <span class="device-tag" draggable="true" ondragstart="drag(event)" id="device-{{ device_id }}">{{ device_id }}</span>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
+                    <div class="device-list" ondrop="drop(event, 'external_{{ warehouse }}')" ondragover="allowDrop(event)" id="external-{{ loop.index }}"></div>
                 </div>
             </div>
             {% endfor %}
@@ -85,60 +101,151 @@
 
         <div class="unassigned-area">
             <h3>割り当てなし</h3>
-            <div class="device-list"
-                ondrop="drop(event, '')"
-                ondragover="allowDrop(event)"
-                id="unassigned">
-                {% for device_id in unassigned|sort %}
-                    <span class="device-tag"
-                          draggable="true"
-                          ondragstart="drag(event)"
-                          id="device-{{ device_id }}">{{ device_id }}</span>
-                {% endfor %}
-            </div>
+            <div class="device-list" ondrop="drop(event, '')" ondragover="allowDrop(event)" id="unassigned"></div>
         </div>
     </div>
 
     <p><a href="{{ url_for('settings') }}">戻る</a></p>
 
     <script>
-        let assignments = {{ assignments_json|safe }};
+        let assignments = {{ assignments_json | safe }};
+        let draggedElement = null;
+        const placeholder = document.createElement("div");
+        placeholder.classList.add("placeholder");
 
         function allowDrop(ev) {
             ev.preventDefault();
+            const targetList = ev.target.closest('.device-list');
+            if (!targetList || !draggedElement) return;
+
+            if (placeholder.parentElement && placeholder.parentElement !== targetList) {
+                placeholder.parentElement.removeChild(placeholder);
+            }
+
+            const mouseY = ev.clientY;
+            let inserted = false;
+            for (let child of targetList.children) {
+                if (child === draggedElement || child === placeholder) continue;
+                const rect = child.getBoundingClientRect();
+                if (mouseY < rect.top + rect.height / 2) {
+                    targetList.insertBefore(placeholder, child);
+                    inserted = true;
+                    break;
+                }
+            }
+
+            if (!inserted && placeholder.parentElement !== targetList) {
+                targetList.appendChild(placeholder);
+            }
         }
 
         function drag(ev) {
-            ev.dataTransfer.setData("text", ev.target.id);
+            draggedElement = ev.target;
+            ev.dataTransfer.setData("text/plain", ev.target.id);
         }
 
         function drop(ev, warehouse) {
             ev.preventDefault();
-            const deviceId = ev.dataTransfer.getData("text");
-            const element = document.getElementById(deviceId);
+            const id = ev.dataTransfer.getData("text/plain");
+            const element = document.getElementById(id);
+            const targetList = ev.target.closest('.device-list');
+            if (!targetList) return;
 
-            // タグの上にはドロップさせない
-            if (ev.target.classList.contains('device-tag')) {
-                return;
-            }
-
-            // ドロップ先に移動
-            ev.target.appendChild(element);
-
-            // 割り当て更新
-            const id = deviceId.replace('device-', '');
-            if (warehouse === '') {
-                delete assignments[id];
+            if (placeholder.parentElement === targetList) {
+                targetList.replaceChild(element, placeholder);
             } else {
-                assignments[id] = warehouse;
+                targetList.appendChild(element);
             }
 
-            // AJAXで保存
+            const deviceId = id.replace('device-', '');
+            if (warehouse === '') {
+                delete assignments[deviceId];
+            } else {
+                assignments[deviceId] = warehouse;
+            }
+
             fetch('/save_assignment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(assignments)
             });
+
+            if (placeholder.parentElement) {
+                placeholder.parentElement.removeChild(placeholder);
+            }
+
+            draggedElement = null;
+        }
+
+        function removeAssignment(event, deviceId) {
+            event.stopPropagation();
+            const tag = document.getElementById("device-" + deviceId);
+            const unassignedBox = document.getElementById("unassigned");
+            if (tag && unassignedBox) {
+                tag.remove();
+                delete assignments[deviceId];
+
+                const newTag = createTag(deviceId);  // ✖なしで再生成
+                unassignedBox.appendChild(newTag);
+
+                fetch('/save_assignment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(assignments)
+                });
+
+            }
+        }
+
+        // タグの生成
+        document.addEventListener("DOMContentLoaded", () => {
+            const allTags = new Set();
+
+            for (const [deviceId, warehouse] of Object.entries(assignments)) {
+                const tag = createTag(deviceId);
+                const element = document.getElementById(
+                    warehouse.startsWith("external_")
+                        ? `external-${getWarehouseIndex(warehouse.slice(9))}`
+                        : `warehouse-${getWarehouseIndex(warehouse)}`
+                );
+                if (element && !document.getElementById("device-" + deviceId)) {
+                    element.appendChild(tag);
+                    allTags.add(deviceId);
+                }
+            }
+
+            {% for device_id in unassigned %}
+                if (!allTags.has("{{ device_id }}")) {
+                    const tag = createTag("{{ device_id }}");
+                    const unassignedBox = document.getElementById("unassigned");
+                    unassignedBox.appendChild(tag);
+                }
+            {% endfor %}
+        });
+
+        function createTag(deviceId) {
+            const tag = document.createElement("span");
+            tag.className = "device-tag";
+            tag.id = "device-" + deviceId;
+            tag.draggable = true;
+            tag.ondragstart = drag;
+            const assignedWarehouse = assignments[deviceId];
+            if (assignedWarehouse !== undefined && assignedWarehouse !== "") {
+                const removeBtn = document.createElement("span");
+                removeBtn.className = "remove-btn";
+                removeBtn.textContent = "✖";
+                removeBtn.onclick = function(e) { removeAssignment(e, deviceId); };
+                tag.appendChild(document.createTextNode(deviceId));
+                tag.appendChild(removeBtn);
+            } else {
+                tag.textContent = deviceId;
+            }
+            return tag;
+        }
+
+        function getWarehouseIndex(name) {
+            const warehouses = {{ warehouses | tojson }};
+            return warehouses.indexOf(name) + 1;
         }
     </script>
 </body>
