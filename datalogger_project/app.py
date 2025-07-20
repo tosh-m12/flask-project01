@@ -5,6 +5,8 @@ import os
 from glob import glob
 import subprocess
 import sys
+from datetime import datetime
+
 
 app = Flask(__name__)
 
@@ -104,33 +106,39 @@ def load_warehouse_names():
 
 
 def load_latest_cache():
-    if not os.path.exists(CACHE_DIR):
-        os.makedirs(CACHE_DIR)
-    files = sorted(glob(os.path.join(CACHE_DIR, "device_cache_*.json")), reverse=True)
-    for file in files:
-        try:
-            with open(file, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            continue
-    return []
+    latest_file = os.path.join(CACHE_DIR, 'device_cache_latest.json')
+    if not os.path.exists(latest_file):
+        return None, []
+
+    try:
+        with open(latest_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        timestamp = os.path.getmtime(latest_file)
+        dt = datetime.fromtimestamp(timestamp)
+        return dt, data
+    except Exception as e:
+        print(f"[ERROR] Failed to load latest cache: {e}")
+        return None, []
 
 
 @app.route("/")
 def index():
     try:
-        devices = load_latest_cache()
+        dt, devices = load_latest_cache()  # 修正済み ← devices = load_latest_cache() ではない
+
         with open(ASSIGNMENT_FILE, "r", encoding="utf-8") as f:
             assignments = json.load(f)
         with open(WAREHOUSE_FILE, "r", encoding="utf-8") as f:
             warehouses = json.load(f)
         with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
             settings = json.load(f)
+
         warehouse_devices = {wh: [] for wh in warehouses}
         for d in devices:
             wh = assignments.get(d["id"])
             if wh in warehouse_devices:
                 warehouse_devices[wh].append(d)
+
         return render_template(
             "index.html",
             warehouse_devices=warehouse_devices,

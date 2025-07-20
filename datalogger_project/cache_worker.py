@@ -91,19 +91,48 @@ def main():
         expire_hours = settings.get("cache_expire_hours", 168)
 
         try:
-            token, user_id = login_and_get_token()
-            devices = fetch_all_devices(token, user_id)
+            # 認証情報取得
+            try:
+                token, user_id = login_and_get_token()
+            except Exception as e:
+                print(f"[ERROR] Login failed: {e}")
+                time.sleep(interval)
+                continue
+
+            # デバイスデータ取得
+            try:
+                devices = fetch_all_devices(token, user_id)
+            except Exception as e:
+                print(f"[ERROR] Fetching devices failed: {e}")
+                devices = []  # ← 安全策
+
+            # キャッシュ保存
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
             cache_file = os.path.join(CACHE_DIR, f"device_cache_{timestamp}.json")
-            with open(cache_file, "w", encoding="utf-8") as f:
-                json.dump(devices, f, ensure_ascii=False, indent=2)
-            print(f"[INFO] Cache saved to {cache_file}")
-            cleanup_cache(expire_hours)
+            try:
+                with open(cache_file, "w", encoding="utf-8") as f:
+                    json.dump(devices, f, ensure_ascii=False, indent=2)
+                print(f"[INFO] Cache saved to {cache_file}")
+
+                # 最新キャッシュとして保存（device_cache_latest.json）
+                latest_cache_file = os.path.join(CACHE_DIR, "device_cache_latest.json")
+                with open(latest_cache_file, "w", encoding="utf-8") as f:
+                    json.dump(devices, f, ensure_ascii=False, indent=2)
+                print(f"[INFO] device_cache_latest.json updated")
+
+            except Exception as e:
+                print(f"[ERROR] Saving cache failed: {e}")
+
+            # 古いキャッシュ削除
+            try:
+                cleanup_cache(expire_hours)
+            except Exception as e:
+                print(f"[ERROR] Cache cleanup failed: {e}")
+
         except Exception as e:
-            print(f"[ERROR] Cache failed: {e}")
-
-        time.sleep(interval)
-
+            print(f"[FATAL ERROR] Unexpected error in main loop: {e}")
+        finally:
+            time.sleep(interval)
 
 if __name__ == "__main__":
     main()
