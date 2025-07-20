@@ -8,9 +8,52 @@
     <h1>設定メニュー</h1>
 
     <form method="post">
-        <label>更新間隔（秒）:</label>
+        <label>表示更新間隔（秒）:</label>
         <input type="number" name="interval" value="{{ interval }}" min="1" required>
+        <br><br>
+
+        <label>データキャッシュ取得間隔（秒）:</label>
+        <input type="number" name="cache_interval" value="{{ cache_interval }}" min="1" required>
+        <br><br>
+
+        <label>キャッシュ保存期間（時間）:</label>
+        <input type="number" name="cache_expire_hours" value="{{ cache_expire_hours }}" min="1" required>
+        <br><br>
+
+        <label>ログ取得時刻（24時間形式、複数指定可）:</label>
+        <div id="log-times-container">
+            {% for t in log_times %}
+                <div class="log-time-entry">
+                    <input type="time" name="log_times" value="{{ t }}">
+                    <button type="button" onclick="removeTime(this)">削除</button>
+                </div>
+            {% endfor %}
+        </div>
+        <button type="button" onclick="addLogTime()">＋ 時刻追加</button>
+        <br><br>
+
+        <label>ログ保存先ディレクトリ:</label>
+        <input type="text" name="log_directory" value="{{ log_directory }}" required>
+        <br><br>
+
         <button type="submit">保存</button>
+
+        <script>
+            function addLogTime() {
+                const container = document.getElementById("log-times-container");
+                const entry = document.createElement("div");
+                entry.className = "log-time-entry";
+                entry.innerHTML = `
+                    <input type="time" name="log_times">
+                    <button type="button" onclick="removeTime(this)">削除</button>
+                `;
+                container.appendChild(entry);
+            }
+
+            function removeTime(button) {
+                button.parentElement.remove();
+            }
+        </script>
     </form>
 
     <br>
@@ -19,3 +62,4 @@
     <p><a href="{{ url_for('index') }}">戻る</a></p>
 </body>
 </html>
+

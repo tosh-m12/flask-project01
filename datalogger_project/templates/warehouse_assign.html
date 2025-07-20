@@ -9,22 +9,18 @@
             justify-content: space-between;
             align-items: flex-start;
         }
-
         .warehouse-area {
             flex: 1;
             margin-right: 30px;
         }
-
         .unassigned-area {
             width: 200px;
         }
-
         .warehouse-block {
             margin-bottom: 30px;
             border: 1px solid #ccc;
             padding: 10px;
         }
-
         .device-list {
             min-height: 40px;
             border: 1px dashed #aaa;
@@ -34,7 +30,6 @@
             justify-content: flex-start;
             align-items: flex-start;
         }
-
         .device-tag {
             position: relative;
             width: 170px;
@@ -47,11 +42,9 @@
             cursor: move;
             user-select: none;
         }
-
         .device-tag:hover .remove-btn {
             display: block;
         }
-
         .remove-btn {
             position: absolute;
             top: -5px;
@@ -65,11 +58,9 @@
             cursor: pointer;
             display: none;
         }
-
         .external-block {
             width: 220px;
         }
-
         .placeholder {
             width: 170px;
             height: 30px;
@@ -147,17 +138,21 @@
         function drop(ev, warehouse) {
             ev.preventDefault();
             const id = ev.dataTransfer.getData("text/plain");
+            const deviceId = id.replace('device-', '');
             const element = document.getElementById(id);
             const targetList = ev.target.closest('.device-list');
             if (!targetList) return;
 
+            if (element) element.remove();
+            const showRemove = warehouse !== '';
+            const newTag = createTag(deviceId, showRemove);
+
             if (placeholder.parentElement === targetList) {
-                targetList.replaceChild(element, placeholder);
+                targetList.replaceChild(newTag, placeholder);
             } else {
-                targetList.appendChild(element);
+                targetList.appendChild(newTag);
             }
 
-            const deviceId = id.replace('device-', '');
             if (warehouse === '') {
                 delete assignments[deviceId];
             } else {
@@ -184,8 +179,7 @@
             if (tag && unassignedBox) {
                 tag.remove();
                 delete assignments[deviceId];
-
-                const newTag = createTag(deviceId);  // ✖なしで再生成
+                const newTag = createTag(deviceId, false);  // ✖なしで再生成
                 unassignedBox.appendChild(newTag);
 
                 fetch('/save_assignment', {
@@ -193,16 +187,41 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(assignments)
                 });
-
             }
         }
 
-        // タグの生成
+        function createTag(deviceId, showRemove = false) {
+            const tag = document.createElement("span");
+            tag.className = "device-tag";
+            tag.id = "device-" + deviceId;
+            tag.draggable = true;
+            tag.ondragstart = drag;
+
+            tag.textContent = deviceId;
+
+            if (showRemove) {
+                const removeBtn = document.createElement("span");
+                removeBtn.className = "remove-btn";
+                removeBtn.textContent = "✖";
+                removeBtn.onclick = function(e) {
+                    removeAssignment(e, deviceId);
+                };
+                tag.appendChild(removeBtn);
+            }
+
+            return tag;
+        }
+
+        function getWarehouseIndex(name) {
+            const warehouses = {{ warehouses | tojson }};
+            return warehouses.indexOf(name) + 1;
+        }
+
         document.addEventListener("DOMContentLoaded", () => {
             const allTags = new Set();
 
             for (const [deviceId, warehouse] of Object.entries(assignments)) {
-                const tag = createTag(deviceId);
+                const tag = createTag(deviceId, true);
                 const element = document.getElementById(
                     warehouse.startsWith("external_")
                         ? `external-${getWarehouseIndex(warehouse.slice(9))}`
@@ -216,37 +235,12 @@
 
             {% for device_id in unassigned %}
                 if (!allTags.has("{{ device_id }}")) {
-                    const tag = createTag("{{ device_id }}");
+                    const tag = createTag("{{ device_id }}", false);
                     const unassignedBox = document.getElementById("unassigned");
                     unassignedBox.appendChild(tag);
                 }
             {% endfor %}
         });
-
-        function createTag(deviceId) {
-            const tag = document.createElement("span");
-            tag.className = "device-tag";
-            tag.id = "device-" + deviceId;
-            tag.draggable = true;
-            tag.ondragstart = drag;
-            const assignedWarehouse = assignments[deviceId];
-            if (assignedWarehouse !== undefined && assignedWarehouse !== "") {
-                const removeBtn = document.createElement("span");
-                removeBtn.className = "remove-btn";
-                removeBtn.textContent = "✖";
-                removeBtn.onclick = function(e) { removeAssignment(e, deviceId); };
-                tag.appendChild(document.createTextNode(deviceId));
-                tag.appendChild(removeBtn);
-            } else {
-                tag.textContent = deviceId;
-            }
-            return tag;
-        }
-
-        function getWarehouseIndex(name) {
-            const warehouses = {{ warehouses | tojson }};
-            return warehouses.indexOf(name) + 1;
-        }
     </script>
 </body>
 </html>

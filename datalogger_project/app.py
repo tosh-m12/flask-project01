@@ -2,19 +2,22 @@ from flask import Flask, render_template, jsonify, request, redirect, url_for
 import requests
 import json
 import os
+from glob import glob
+import subprocess
+import sys
 
 app = Flask(__name__)
 
 LOGIN_URL = "http://1weilian.com/user/login"
 DATA_URL = "http://1weilian.com/public/realTimeData"
-
 ACCOUNT = "nglswhs47"
 PASSWORD = "ngls1234"
 
-ASSIGNMENT_FILE = "device_assignments.json"
-SETTINGS_FILE = "settings.json"
-WAREHOUSE_FILE = "warehouse_names.json"
-
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ASSIGNMENT_FILE = os.path.join(BASE_DIR, "device_assignments.json")
+SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
+WAREHOUSE_FILE = os.path.join(BASE_DIR, "warehouses.json")
+CACHE_DIR = os.path.join(BASE_DIR, "cache")
 
 def login_and_get_token():
     payload = {
@@ -61,6 +64,17 @@ def fetch_all_devices(token, user_id):
         page += 1
     return all_devices
 
+def start_background_tasks():
+    try:
+        print("[DEBUG] Starting background tasks")
+        subprocess.Popen([sys.executable, os.path.join(BASE_DIR, "cache_worker.py")],
+                         stdout=sys.stdout, stderr=sys.stderr)
+        subprocess.Popen([sys.executable, os.path.join(BASE_DIR, "cache_logger.py")],
+                         stdout=sys.stdout, stderr=sys.stderr)
+        print("[DEBUG] Background tasks launched")
+    except Exception as e:
+        print(f"[ERROR] Failed to start background tasks: {e}")
+
 def load_device_assignments():
     if os.path.exists(ASSIGNMENT_FILE):
         with open(ASSIGNMENT_FILE, "r", encoding="utf-8") as f:
@@ -82,31 +96,43 @@ def save_json(filename, data):
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-WAREHOUSE_FILE = "warehouses.json"
-
 def load_warehouse_names():
     if os.path.exists(WAREHOUSE_FILE):
         with open(WAREHOUSE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return ["倉庫A", "倉庫B", "倉庫C"]
 
+
+def load_latest_cache():
+    if not os.path.exists(CACHE_DIR):
+        os.makedirs(CACHE_DIR)
+    files = sorted(glob(os.path.join(CACHE_DIR, "device_cache_*.json")), reverse=True)
+    for file in files:
+        try:
+            with open(file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            continue
+    return []
+
+
 @app.route("/")
 def index():
     try:
-        token, user_id = login_and_get_token()
-        devices = fetch_all_devices(token, user_id)
-        assignments = load_device_assignments()
-        warehouses = load_warehouse_names()
-        settings = load_json(SETTINGS_FILE, {"interval": 10})
-
+        devices = load_latest_cache()
+        with open(ASSIGNMENT_FILE, "r", encoding="utf-8") as f:
+            assignments = json.load(f)
+        with open(WAREHOUSE_FILE, "r", encoding="utf-8") as f:
+            warehouses = json.load(f)
+        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+            settings = json.load(f)
         warehouse_devices = {wh: [] for wh in warehouses}
         for d in devices:
             wh = assignments.get(d["id"])
             if wh in warehouse_devices:
                 warehouse_devices[wh].append(d)
-
         return render_template(
-            "index.html", 
+            "index.html",
             warehouse_devices=warehouse_devices,
             interval=settings.get("interval", 10)
         )
@@ -129,13 +155,28 @@ def data():
 
 @app.route("/settings", methods=["GET", "POST"])
 def settings():
-    settings = load_json(SETTINGS_FILE, {"interval": 10})
+    default_settings = {
+        "interval": 10,
+        "cache_interval": 10,
+        "cache_expire_hours": 72,
+        "log_times": ["03:00", "09:00"],  # ← デフォルト複数時刻
+        "log_directory": "logs"
+    }
+
+    settings = load_json(SETTINGS_FILE, default_settings)
+
     if request.method == "POST":
-        interval = int(request.form.get("interval", 10))
-        settings["interval"] = interval
+        settings["interval"] = int(request.form.get("interval", settings["interval"]))
+        settings["cache_interval"] = int(request.form.get("cache_interval", settings["cache_interval"]))
+        settings["cache_expire_hours"] = int(request.form.get("cache_expire_hours", settings["cache_expire_hours"]))
+        settings["log_directory"] = request.form.get("log_directory", settings["log_directory"]).strip()
+        settings["log_times"] = request.form.getlist("log_times")
+
         save_json(SETTINGS_FILE, settings)
         return redirect(url_for("index"))
-    return render_template("settings.html", interval=settings.get("interval", 10))
+
+    return render_template("settings.html", **settings)
+
 
 
 @app.route("/warehouse_assign", methods=["GET", "POST"])
@@ -243,4 +284,5 @@ def warehouse_names():
 
 
 if __name__ == "__main__":
+    start_background_tasks()
     app.run(debug=True)
