@@ -100,7 +100,6 @@ def log_data():
     print(f"[DEBUG] Logging to directory: {log_dir}")
 
     assignments = load_device_assignments()  # device_id → location_id
-    locations = load_locations()  # location_id → 倉庫名
 
     now = datetime.now()
     ts, data = load_nearest_cache(now)
@@ -117,7 +116,6 @@ def log_data():
         last_seen = device.get('last_seen', '')
 
         loc_id = assignments.get(dev_id, '')
-        warehouse = locations.get(loc_id, f"[未登録:{loc_id}]") if loc_id else "未割当"
 
         log_file = os.path.join(log_dir, f"{dev_id}.csv")
         write_header = not os.path.exists(log_file)
@@ -125,8 +123,8 @@ def log_data():
         try:
             with open(log_file, 'a', encoding='utf-8') as f:
                 if write_header:
-                    f.write("timestamp,temperature,humidity,last_seen,location_id,warehouse\n")
-                f.write(f"{timestamp_str},{temperature},{humidity},{last_seen},{loc_id},{warehouse}\n")
+                    f.write("timestamp,temperature,humidity,last_seen,location_id\n")
+                f.write(f"{timestamp_str},{temperature},{humidity},{last_seen},{loc_id}\n")
             print(f"[INFO] Logged: {dev_id} at {timestamp_str}")
         except Exception as e:
             print(f"[ERROR] Writing log for {dev_id} failed: {e}")

@@ -2,9 +2,9 @@
   {
     "id": "C00220200A8B",
     "name": "C00220200A8B_47F2-A",
-    "temperature": "24.3",
-    "humidity": "59.1",
-    "last_seen": "2025-07-21 17:42:28",
+    "temperature": "24.5",
+    "humidity": "59.9",
+    "last_seen": "2025-07-21 17:33:32",
     "online": true,
     "location_id": "loc06",
     "warehouse": "D倉庫2F"
@@ -13,8 +13,8 @@
     "id": "C00220102D5E",
     "name": "c00220102d5e-47A3",
     "temperature": "23.5",
-    "humidity": "75.6",
-    "last_seen": "2025-07-21 17:42:08",
+    "humidity": "75.1",
+    "last_seen": "2025-07-21 17:32:10",
     "online": true,
     "location_id": "loc05",
     "warehouse": "D倉庫大部屋"
@@ -23,78 +23,18 @@
     "id": "C00220200A5C",
     "name": "C00220200A5C_48FMC",
     "temperature": "22.1",
-    "humidity": "83.3",
-    "last_seen": "2025-07-21 17:41:20",
+    "humidity": "82.8",
+    "last_seen": "2025-07-21 17:29:06",
     "online": true,
     "location_id": "loc01",
     "warehouse": "B倉庫FMC"
   },
   {
-    "id": "C00220200A15",
-    "name": "C00220200A15_47F2-C",
-    "temperature": "24.5",
-    "humidity": "57.2",
-    "last_seen": "2025-07-21 17:42:16",
-    "online": true,
-    "location_id": "loc06",
-    "warehouse": "D倉庫2F"
-  },
-  {
-    "id": "C00220200AD6",
-    "name": "C00220200AD6_C2-3_07",
-    "temperature": "23.5",
-    "humidity": "71.9",
-    "last_seen": "2025-07-21 17:42:15",
-    "online": true,
-    "location_id": null,
-    "warehouse": "未割当"
-  },
-  {
-    "id": "C00220200A26",
-    "name": "C00220200A26_C2-3_04",
-    "temperature": "24.4",
-    "humidity": "68.5",
-    "last_seen": "2025-07-21 17:42:13",
-    "online": true,
-    "location_id": null,
-    "warehouse": "未割当"
-  },
-  {
-    "id": "C0022010216C",
-    "name": "c0022010216c-47EETL",
-    "temperature": "23.4",
-    "humidity": "63.4",
-    "last_seen": "2025-07-21 17:42:09",
-    "online": true,
-    "location_id": "loc07",
-    "warehouse": "D倉庫1F"
-  },
-  {
-    "id": "C00220200A5B",
-    "name": "C00220200A5B_C-2_01",
-    "temperature": "30.3",
-    "humidity": "76.9",
-    "last_seen": "2025-07-21 17:41:54",
-    "online": true,
-    "location_id": null,
-    "warehouse": "未割当"
-  },
-  {
-    "id": "C00220102CFE",
-    "name": "c00220102cfe_C2-3_05",
-    "temperature": "23.3",
-    "humidity": "73.9",
-    "last_seen": "2025-07-21 17:41:46",
-    "online": true,
-    "location_id": null,
-    "warehouse": "未割当"
-  },
-  {
-    "id": "C00220204A72",
-    "name": "C00220204A72-B1_03",
-    "temperature": "33.9",
-    "humidity": "63.0",
-    "last_seen": "2025-07-21 17:41:38",
+    "id": "C00220201670",
+    "name": "c00220201670_C2-3_08",
+    "temperature": "25.2",
+    "humidity": "68.4",
+    "last_seen": "2025-07-21 17:33:41",
     "online": true,
     "location_id": null,
     "warehouse": "未割当"
@@ -103,18 +43,48 @@
     "id": "C00220200526",
     "name": "c00220200526_C2-3_02",
     "temperature": "27.9",
-    "humidity": "67.6",
-    "last_seen": "2025-07-21 17:41:38",
+    "humidity": "67.9",
+    "last_seen": "2025-07-21 17:33:38",
     "online": true,
     "location_id": null,
     "warehouse": "未割当"
   },
   {
-    "id": "C00220201670",
-    "name": "c00220201670_C2-3_08",
-    "temperature": "25.2",
-    "humidity": "68.0",
-    "last_seen": "2025-07-21 17:40:20",
+    "id": "C0022010216C",
+    "name": "c0022010216c-47EETL",
+    "temperature": "23.4",
+    "humidity": "61.9",
+    "last_seen": "2025-07-21 17:33:15",
+    "online": true,
+    "location_id": "loc07",
+    "warehouse": "D倉庫1F"
+  },
+  {
+    "id": "C00220200AD6",
+    "name": "C00220200AD6_C2-3_07",
+    "temperature": "23.6",
+    "humidity": "72.0",
+    "last_seen": "2025-07-21 17:33:14",
+    "online": true,
+    "location_id": null,
+    "warehouse": "未割当"
+  },
+  {
+    "id": "C00220200A15",
+    "name": "C00220200A15_47F2-C",
+    "temperature": "24.6",
+    "humidity": "57.3",
+    "last_seen": "2025-07-21 17:33:13",
+    "online": true,
+    "location_id": "loc06",
+    "warehouse": "D倉庫2F"
+  },
+  {
+    "id": "C00220200A26",
+    "name": "C00220200A26_C2-3_04",
+    "temperature": "24.4",
+    "humidity": "68.8",
+    "last_seen": "2025-07-21 17:33:12",
     "online": true,
     "location_id": null,
     "warehouse": "未割当"
@@ -130,6 +100,26 @@
     "warehouse": "B倉庫湿度管理室前方"
   },
   {
+    "id": "C00220102CFE",
+    "name": "c00220102cfe_C2-3_05",
+    "temperature": "23.4",
+    "humidity": "74.2",
+    "last_seen": "2025-07-21 17:32:47",
+    "online": true,
+    "location_id": null,
+    "warehouse": "未割当"
+  },
+  {
+    "id": "C00220204A72",
+    "name": "C00220204A72-B1_03",
+    "temperature": "33.9",
+    "humidity": "62.9",
+    "last_seen": "2025-07-21 17:31:38",
+    "online": true,
+    "location_id": null,
+    "warehouse": "未割当"
+  },
+  {
     "id": "C00220102C77",
     "name": "c00220102c77-48B3",
     "temperature": "20.7",
@@ -138,6 +128,16 @@
     "online": true,
     "location_id": "loc02",
     "warehouse": "B倉庫湿度管理室前方"
+  },
+  {
+    "id": "C00220200A5B",
+    "name": "C00220200A5B_C-2_01",
+    "temperature": "30.3",
+    "humidity": "76.8",
+    "last_seen": "2025-07-21 17:28:34",
+    "online": true,
+    "location_id": null,
+    "warehouse": "未割当"
   },
   {
     "id": "C00220102CE6",
