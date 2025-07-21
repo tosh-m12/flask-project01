@@ -12,3 +12,4 @@ device_assignments.json
 # その他
 *.log
 .env
+g
