@@ -3,73 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>倉庫ごとのデバイス割当</title>
-    <style>
-        .container {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-        }
-        .warehouse-area {
-            flex: 1;
-            margin-right: 30px;
-        }
-        .unassigned-area {
-            width: 200px;
-        }
-        .warehouse-block {
-            margin-bottom: 30px;
-            border: 1px solid #ccc;
-            padding: 10px;
-        }
-        .device-list {
-            min-height: 40px;
-            border: 1px dashed #aaa;
-            padding: 5px;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: flex-start;
-            align-items: flex-start;
-        }
-        .device-tag {
-            position: relative;
-            width: 170px;
-            text-align: center;
-            padding: 5px 10px;
-            margin: 5px;
-            background: #e0f7fa;
-            border: 1px solid #00796b;
-            border-radius: 5px;
-            cursor: move;
-            user-select: none;
-        }
-        .device-tag:hover .remove-btn {
-            display: block;
-        }
-        .remove-btn {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            background-color: #ff5555;
-            color: white;
-            border-radius: 50%;
-            padding: 2px 5px;
-            font-size: 12px;
-            font-weight: bold;
-            cursor: pointer;
-            display: none;
-        }
-        .external-block {
-            width: 220px;
-        }
-        .placeholder {
-            width: 170px;
-            height: 30px;
-            margin: 5px;
-            border: 2px dashed #aaa;
-            border-radius: 5px;
-            background-color: #f0f0f0;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <h1>倉庫ごとのデバイス割当</h1>

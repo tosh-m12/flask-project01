@@ -3,11 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>温湿度モニター（倉庫別）</title>
-    <style>
-        table { border-collapse: collapse; margin-bottom: 30px; width: 100%; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-        h2 { background-color: #f0f0f0; padding: 8px; }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script>
         const intervalSeconds = {{ interval }};  // Flask から渡された変数
         async function fetchData() {
