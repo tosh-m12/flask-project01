@@ -76,15 +76,15 @@
 
     <div class="container">
         <div class="warehouse-area">
-            {% for warehouse in warehouses %}
+            {% for loc_id, loc_name in locations.items() %}
             <div class="warehouse-block" style="display: flex; justify-content: space-between;">
                 <div style="flex: 1; margin-right: 20px;">
-                    <h3>{{ warehouse }}</h3>
-                    <div class="device-list" ondrop="drop(event, '{{ warehouse }}')" ondragover="allowDrop(event)" id="warehouse-{{ loop.index }}"></div>
+                    <h3>{{ loc_name }}</h3>
+                    <div class="device-list" ondrop="drop(event, '{{ loc_id }}')" ondragover="allowDrop(event)" id="warehouse-{{ loop.index }}"></div>
                 </div>
                 <div class="external-block">
                     <h4>外気測定用</h4>
-                    <div class="device-list" ondrop="drop(event, 'external_{{ warehouse }}')" ondragover="allowDrop(event)" id="external-{{ loop.index }}"></div>
+                    <div class="device-list" ondrop="drop(event, 'external_{{ loc_id }}')" ondragover="allowDrop(event)" id="external-{{ loop.index }}"></div>
                 </div>
             </div>
             {% endfor %}
@@ -212,20 +212,20 @@
             return tag;
         }
 
-        function getWarehouseIndex(name) {
-            const warehouses = {{ warehouses | tojson }};
-            return warehouses.indexOf(name) + 1;
+        function getWarehouseIndex(loc_id) {
+            const keys = Object.keys({{ locations | tojson }});
+            return keys.indexOf(loc_id) + 1;
         }
 
         document.addEventListener("DOMContentLoaded", () => {
             const allTags = new Set();
 
-            for (const [deviceId, warehouse] of Object.entries(assignments)) {
+            for (const [deviceId, locId] of Object.entries(assignments)) {
                 const tag = createTag(deviceId, true);
                 const element = document.getElementById(
-                    warehouse.startsWith("external_")
-                        ? `external-${getWarehouseIndex(warehouse.slice(9))}`
-                        : `warehouse-${getWarehouseIndex(warehouse)}`
+                    locId.startsWith("external_")
+                        ? `external-${getWarehouseIndex(locId.slice(9))}`
+                        : `warehouse-${getWarehouseIndex(locId)}`
                 );
                 if (element && !document.getElementById("device-" + deviceId)) {
                     element.appendChild(tag);
@@ -233,13 +233,14 @@
                 }
             }
 
-            {% for device_id in unassigned %}
-                if (!allTags.has("{{ device_id }}")) {
-                    const tag = createTag("{{ device_id }}", false);
+            {% for dev in unassigned_devices %}
+                if (!allTags.has("{{ dev.id }}")) {
+                    const tag = createTag("{{ dev.id }}", false);
                     const unassignedBox = document.getElementById("unassigned");
                     unassignedBox.appendChild(tag);
                 }
             {% endfor %}
+
         });
     </script>
 </body>

@@ -19,12 +19,13 @@
 
                 // 倉庫ごとにテーブルを再構成
                 devices.forEach(d => {
-                    if (!d.warehouse) return;  // 未割当は除外
+                    if (!d.warehouse || d.warehouse === "未割当" || d.warehouse.startsWith("[未登録:")) return;
                     if (!warehouseDevices[d.warehouse]) {
                         warehouseDevices[d.warehouse] = [];
                     }
                     warehouseDevices[d.warehouse].push(d);
                 });
+
 
                 // 全テーブル領域をクリア
                 const container = document.getElementById("tables-container");

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>倉庫名の編集</title>
+</head>
+<body>
+    <h1>倉庫名の編集</h1>
+    <form method="post">
+        {% for loc_id, name in locations.items() %}
+            <div>
+                <label>{{ loc_id }}: <input type="text" name="loc_{{ loc_id }}" value="{{ name }}"></label>
+            </div>
+        {% endfor %}
+        <button type="submit">保存</button>
+    </form>
+    <p><a href="{{ url_for('settings') }}">戻る</a></p>
+</body>
+</html>

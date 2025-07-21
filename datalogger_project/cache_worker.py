@@ -11,15 +11,24 @@ PASSWORD = "ngls1234"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
+ASSIGNMENT_FILE = os.path.join(BASE_DIR, "device_assignments.json")
 CACHE_DIR = os.path.join(BASE_DIR, "cache")
+LOCATION_FILE = os.path.join(BASE_DIR, "locations.json")
 
-# 作成確認とログ出力
 os.makedirs(CACHE_DIR, exist_ok=True)
 print(f"[INFO] Cache directory ensured at: {os.path.abspath(CACHE_DIR)}")
 
+def load_json(filename, default=None):
+    if os.path.exists(filename):
+        with open(filename, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return default if default is not None else {}
+
 def load_settings():
-    with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return load_json(SETTINGS_FILE, {})
+
+def load_device_assignments():
+    return load_json(ASSIGNMENT_FILE, {})
 
 def login_and_get_token():
     payload = {
@@ -32,6 +41,9 @@ def login_and_get_token():
     response = requests.post(LOGIN_URL, json=payload, headers=headers)
     result = response.json()
     return result["data"]["accessToken"], result["data"]["userId"]
+
+def load_locations():
+    return load_json(LOCATION_FILE, {})
 
 def fetch_all_devices(token, user_id):
     all_devices = []
@@ -51,11 +63,10 @@ def fetch_all_devices(token, user_id):
         response = requests.post(DATA_URL, json=payload, headers=headers)
         try:
             result = response.json()
-            # print("[DEBUG] API Response JSON:", result)  # ← JSON全体を出力
             data_list = result["data"]["dataList"]
         except (KeyError, ValueError) as e:
             print(f"[ERROR] Failed to parse response: {e}")
-            break  # または return all_devices
+            break
         if not data_list:
             break
         for dev in data_list:
@@ -84,14 +95,13 @@ def cleanup_cache(expire_hours):
                 continue
 
 def main():
-    print("[DEBUG] cache_worker main loop starting") 
+    print("[DEBUG] cache_worker main loop starting")
     while True:
         settings = load_settings()
         interval = settings.get("cache_interval", 300)
         expire_hours = settings.get("cache_expire_hours", 168)
 
         try:
-            # 認証情報取得
             try:
                 token, user_id = login_and_get_token()
             except Exception as e:
@@ -99,14 +109,19 @@ def main():
                 time.sleep(interval)
                 continue
 
-            # デバイスデータ取得
             try:
                 devices = fetch_all_devices(token, user_id)
             except Exception as e:
                 print(f"[ERROR] Fetching devices failed: {e}")
-                devices = []  # ← 安全策
+                devices = []
 
-            # キャッシュ保存
+            assignments = load_device_assignments()
+            locations = load_json(LOCATION_FILE, {})
+
+            for d in devices:
+                d["location_id"] = assignments.get(d["id"], None)
+                d["warehouse"] = locations.get(d["location_id"], "未割当") if d["location_id"] else "未割当"  # ← 追加
+
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
             cache_file = os.path.join(CACHE_DIR, f"device_cache_{timestamp}.json")
             try:
@@ -114,7 +129,6 @@ def main():
                     json.dump(devices, f, ensure_ascii=False, indent=2)
                 print(f"[INFO] Cache saved to {cache_file}")
 
-                # 最新キャッシュとして保存（device_cache_latest.json）
                 latest_cache_file = os.path.join(CACHE_DIR, "device_cache_latest.json")
                 with open(latest_cache_file, "w", encoding="utf-8") as f:
                     json.dump(devices, f, ensure_ascii=False, indent=2)
@@ -123,7 +137,6 @@ def main():
             except Exception as e:
                 print(f"[ERROR] Saving cache failed: {e}")
 
-            # 古いキャッシュ削除
             try:
                 cleanup_cache(expire_hours)
             except Exception as e:
@@ -136,4 +149,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    

@@ -2,11 +2,9 @@ from flask import Flask, render_template, jsonify, request, redirect, url_for
 import requests
 import json
 import os
-from glob import glob
 import subprocess
 import sys
 from datetime import datetime
-
 
 app = Flask(__name__)
 
@@ -19,6 +17,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSIGNMENT_FILE = os.path.join(BASE_DIR, "device_assignments.json")
 SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
 WAREHOUSE_FILE = os.path.join(BASE_DIR, "warehouses.json")
+LOCATION_FILE = os.path.join(BASE_DIR, "locations.json")
+ASSIGNMENT_HISTORY_FILE = os.path.join(BASE_DIR, "assignment_history.json")
 CACHE_DIR = os.path.join(BASE_DIR, "cache")
 
 def login_and_get_token():
@@ -32,7 +32,6 @@ def login_and_get_token():
     response = requests.post(LOGIN_URL, json=payload, headers=headers)
     result = response.json()
     return result["data"]["accessToken"], result["data"]["userId"]
-
 
 def fetch_all_devices(token, user_id):
     all_devices = []
@@ -50,10 +49,19 @@ def fetch_all_devices(token, user_id):
         }
         headers = {"Content-Type": "application/json;charset=UTF-8"}
         response = requests.post(DATA_URL, json=payload, headers=headers)
-        result = response.json()
-        data_list = result["data"]["dataList"]
+        try:
+            result = response.json()
+            if "data" not in result or "dataList" not in result["data"]:
+                print(f"[WARN] No dataList found in response: {result}")
+                break
+            data_list = result["data"]["dataList"]
+        except Exception as e:
+            print(f"[ERROR] Failed to parse device data: {e}")
+            break
+
         if not data_list:
             break
+
         for dev in data_list:
             all_devices.append({
                 "id": dev["sn"],
@@ -63,29 +71,18 @@ def fetch_all_devices(token, user_id):
                 "last_seen": dev["date"],
                 "online": dev["status"] == 0
             })
+
         page += 1
     return all_devices
 
 def start_background_tasks():
     try:
-        print("[DEBUG] Starting background tasks")
         subprocess.Popen([sys.executable, os.path.join(BASE_DIR, "cache_worker.py")],
                          stdout=sys.stdout, stderr=sys.stderr)
         subprocess.Popen([sys.executable, os.path.join(BASE_DIR, "cache_logger.py")],
                          stdout=sys.stdout, stderr=sys.stderr)
-        print("[DEBUG] Background tasks launched")
     except Exception as e:
         print(f"[ERROR] Failed to start background tasks: {e}")
-
-def load_device_assignments():
-    if os.path.exists(ASSIGNMENT_FILE):
-        with open(ASSIGNMENT_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
-
-def save_device_assignments(assignments):
-    with open(ASSIGNMENT_FILE, "w", encoding="utf-8") as f:
-        json.dump(assignments, f, ensure_ascii=False, indent=2)
 
 def load_json(filename, default):
     if os.path.exists(filename):
@@ -93,23 +90,14 @@ def load_json(filename, default):
             return json.load(f)
     return default
 
-
 def save_json(filename, data):
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-
-def load_warehouse_names():
-    if os.path.exists(WAREHOUSE_FILE):
-        with open(WAREHOUSE_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return ["倉庫A", "倉庫B", "倉庫C"]
-
 
 def load_latest_cache():
     latest_file = os.path.join(CACHE_DIR, 'device_cache_latest.json')
     if not os.path.exists(latest_file):
         return None, []
-
     try:
         with open(latest_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -120,33 +108,40 @@ def load_latest_cache():
         print(f"[ERROR] Failed to load latest cache: {e}")
         return None, []
 
+def record_assignment_history(device_id, location_id):
+    history = load_json(ASSIGNMENT_HISTORY_FILE, {})
+    if device_id not in history:
+        history[device_id] = []
+    history[device_id].append({
+        "location_id": location_id,
+        "timestamp": datetime.now().isoformat()
+    })
+    save_json(ASSIGNMENT_HISTORY_FILE, history)
 
 @app.route("/")
 def index():
-    try:
-        dt, devices = load_latest_cache()  # 修正済み ← devices = load_latest_cache() ではない
+    dt, devices = load_latest_cache()
+    assignments = load_json(ASSIGNMENT_FILE, {})
+    locations = load_json(LOCATION_FILE, {})
+    settings = load_json(SETTINGS_FILE, {})
 
-        with open(ASSIGNMENT_FILE, "r", encoding="utf-8") as f:
-            assignments = json.load(f)
-        with open(WAREHOUSE_FILE, "r", encoding="utf-8") as f:
-            warehouses = json.load(f)
-        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-            settings = json.load(f)
+    warehouse_devices = {}
+    for device in devices:
+        device_id = str(device.get("id"))
+        loc_id = assignments.get(device_id)
 
-        warehouse_devices = {wh: [] for wh in warehouses}
-        for d in devices:
-            wh = assignments.get(d["id"])
-            if wh in warehouse_devices:
-                warehouse_devices[wh].append(d)
+        if not loc_id or not isinstance(loc_id, str) or loc_id.strip() == "":
+            continue
 
-        return render_template(
-            "index.html",
-            warehouse_devices=warehouse_devices,
-            interval=settings.get("interval", 10)
-        )
-    except Exception as e:
-        return f"エラー: {e}", 500
+        warehouse = locations.get(loc_id)
+        if not warehouse or warehouse == "未割当":
+            continue  # 表示除外条件を追加
 
+        warehouse_devices.setdefault(warehouse, []).append(device)
+
+    return render_template("index.html", warehouse_devices=warehouse_devices,
+                           interval=settings.get("interval", 10),
+                           last_updated=dt.strftime("%Y-%m-%d %H:%M:%S") if dt else "N/A")
 
 @app.route("/data")
 def data():
@@ -154,24 +149,34 @@ def data():
         token, user_id = login_and_get_token()
         devices = fetch_all_devices(token, user_id)
         assignments = load_json(ASSIGNMENT_FILE, {})
+        locations = load_json(LOCATION_FILE, {})  # ← 追加
+
         for device in devices:
-            device["warehouse"] = assignments.get(device["id"], "")
+            loc_id = assignments.get(device["id"], "")
+            device["location_id"] = loc_id
+            device["warehouse"] = locations.get(loc_id, "未割当") if loc_id else "未割当"  # ← 追加
+
         return jsonify(devices)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/save_assignment", methods=["POST"])
+def save_assignment():
+    data = request.get_json()
+    save_json(ASSIGNMENT_FILE, data)
+    for dev_id, loc_id in data.items():
+        record_assignment_history(dev_id, loc_id)
+    return jsonify({"status": "ok"})
 
 @app.route("/settings", methods=["GET", "POST"])
 def settings():
-    default_settings = {
+    settings = load_json(SETTINGS_FILE, {
         "interval": 10,
         "cache_interval": 10,
         "cache_expire_hours": 72,
-        "log_times": ["03:00", "09:00"],  # ← デフォルト複数時刻
+        "log_times": ["03:00", "09:00"],
         "log_directory": "logs"
-    }
-
-    settings = load_json(SETTINGS_FILE, default_settings)
+    })
 
     if request.method == "POST":
         settings["interval"] = int(request.form.get("interval", settings["interval"]))
@@ -179,117 +184,90 @@ def settings():
         settings["cache_expire_hours"] = int(request.form.get("cache_expire_hours", settings["cache_expire_hours"]))
         settings["log_directory"] = request.form.get("log_directory", settings["log_directory"]).strip()
         settings["log_times"] = request.form.getlist("log_times")
-
         save_json(SETTINGS_FILE, settings)
         return redirect(url_for("index"))
 
     return render_template("settings.html", **settings)
 
-
+@app.route("/locations", methods=["GET", "POST"])
+def edit_locations():
+    locations = load_json(LOCATION_FILE, {})
+    if request.method == "POST":
+        new_locations = {}
+        for key in request.form:
+            if key.startswith("loc_"):
+                loc_id = key[4:]
+                name = request.form[key].strip()
+                if name:
+                    new_locations[loc_id] = name
+        save_json(LOCATION_FILE, new_locations)
+        return redirect(url_for("edit_locations"))
+    return render_template("locations.html", locations=locations)
 
 @app.route("/warehouse_assign", methods=["GET", "POST"])
 def warehouse_assign():
-    try:
-        token, user_id = login_and_get_token()
-        devices = fetch_all_devices(token, user_id)
-        all_device_ids = [d["id"] for d in devices]
-        device_names = {d["id"]: d["name"] for d in devices}
+    token, user_id = login_and_get_token()
+    devices = fetch_all_devices(token, user_id)
+    assignments = load_json(ASSIGNMENT_FILE, {})
+    locations = load_json(LOCATION_FILE, {})
+    device_names = {d["id"]: d["name"] for d in devices}
 
-        warehouse_names = load_warehouse_names()
-        assignments = load_device_assignments()
+    if request.method == "POST":
+        assignments_json = request.form.get("assignments_json")
+        if assignments_json:
+            new_assignments = json.loads(assignments_json)
+            save_json(ASSIGNMENT_FILE, new_assignments)
+            for device_id, loc_id in new_assignments.items():
+                record_assignment_history(device_id, loc_id)
+        return redirect(url_for("settings"))
 
-        if request.method == "POST":
-            assignments_json = request.form.get("assignments_json")
-            if assignments_json:
-                new_assignments = json.loads(assignments_json)
-                save_device_assignments(new_assignments)
-            return redirect(url_for("settings"))
+    # 表示用データの構築
+    warehouse_to_devices = {}
+    unassigned_devices = []
 
-        # 表示用データの構成（GET時）
-        warehouse_to_devices = {wh: [] for wh in warehouse_names}
-        unassigned_devices = []
+    for d in devices:
+        device_id = d["id"]
+        loc_id = assignments.get(device_id)
+        if loc_id and loc_id in locations:
+            warehouse_to_devices.setdefault(loc_id, []).append({
+                "id": device_id,
+                "name": device_names.get(device_id, "")
+            })
+        else:
+            unassigned_devices.append({
+                "id": device_id,
+                "name": device_names.get(device_id, "")
+            })
 
-        for device_id in all_device_ids:
-            warehouse = assignments.get(device_id)
-            if warehouse in warehouse_to_devices:
-                warehouse_to_devices[warehouse].append({
-                    "id": device_id,
-                    "name": device_names.get(device_id, "")
-                })
-            else:
-                unassigned_devices.append({
-                    "id": device_id,
-                    "name": device_names.get(device_id, "")
-                })
+    return render_template(
+        "warehouse_assign.html",
+        assignments=assignments,
+        locations=locations,  # location_id → 倉庫名の辞書
+        warehouse_to_devices=warehouse_to_devices,  # location_id → device list
+        unassigned_devices=unassigned_devices,  # ← 正しい名前で渡す
+        assignments_json=json.dumps(assignments, ensure_ascii=False)
+    )
 
-        return render_template(
-            "warehouse_assign.html",
-            warehouses=warehouse_names,               # 倉庫名のリスト
-            assignments=assignments,                  # デバイスID → 倉庫名 の dict
-            unassigned=[d["id"] for d in unassigned_devices],  # 割り当てなしIDリスト
-            assignments_json=json.dumps(assignments, ensure_ascii=False)
-        )
-    except Exception as e:
-        return f"エラー: {e}", 500
 
+
+@app.route("/warehouse_names")
+def warehouse_names():
+    return redirect(url_for("edit_locations"))
 
 @app.route("/all_devices")
 def all_devices():
-    try:
-        token, user_id = login_and_get_token()
-        devices = fetch_all_devices(token, user_id)
-        assignments = load_device_assignments()
-        for device in devices:
-            device["warehouse"] = assignments.get(device["id"], "")
-        return render_template("all_devices.html", devices=devices)
-    except Exception as e:
-        return f"エラー: {e}", 500
+    dt, devices = load_latest_cache()
+    assignments = load_json(ASSIGNMENT_FILE, {})
+    locations = load_json(LOCATION_FILE, {})
 
+    # location_id → 倉庫名の辞書を参照してデバイス情報に追加
+    for dev in devices:
+        loc_id = assignments.get(dev["id"])
+        dev["location_id"] = loc_id
+        dev["location_name"] = locations.get(loc_id, "未割当")
 
-@app.route("/save_assignment", methods=["POST"])
-def save_assignment():
-    data = request.get_json()
-    save_device_assignments(data)
-    return jsonify({"status": "ok"})
-
-
-@app.route("/warehouse_names", methods=["GET", "POST"])
-def warehouse_names():
-    # 現在の倉庫名一覧と割当データを読み込み
-    current_warehouses = load_json(WAREHOUSE_FILE, ["A", "B", "C"])
-    assignments = load_device_assignments()
-
-    if request.method == "POST":
-        # 新しく保存する倉庫名を抽出
-        new_warehouses = []
-        for key in request.form:
-            if key.startswith("warehouse_"):
-                name = request.form.get(key, "").strip()
-                if name:
-                    new_warehouses.append(name)
-
-        # 消えた倉庫名（削除されたもの）を検出
-        deleted_warehouses = {
-            wh for wh in assignments.values()
-            if wh not in new_warehouses and not wh.startswith("external_")
-        } | {
-            f"external_{wh}" for wh in current_warehouses if wh not in new_warehouses
-        }
-
-        # ← ここを追加
-        updated_assignments = {
-            device_id: warehouse
-            for device_id, warehouse in assignments.items()
-            if warehouse not in deleted_warehouses
-        }
-
-        save_json(WAREHOUSE_FILE, new_warehouses)
-        save_device_assignments(updated_assignments)
-
-        return redirect(url_for("settings"))
-
-    return render_template("warehouse_names.html", warehouses=current_warehouses)
-
+    return render_template("all_devices.html", devices=devices,
+                           last_updated=dt.strftime("%Y-%m-%d %H:%M:%S") if dt else "N/A")
 
 if __name__ == "__main__":
     start_background_tasks()

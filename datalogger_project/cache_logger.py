@@ -8,12 +8,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SETTINGS_FILE = os.path.join(BASE_DIR, 'settings.json')
 CACHE_DIR = os.path.join(BASE_DIR, 'cache')
 LAST_TIMES_FILE = os.path.join(BASE_DIR, 'last_logged_times.txt')
-ASSIGNMENT_FILE = os.path.join(BASE_DIR, "device_assignments.json")  # ← 追加（未定義エラー対策）
+ASSIGNMENT_FILE = os.path.join(BASE_DIR, "device_assignments.json")  # device_id → location_id
+LOCATION_FILE = os.path.join(BASE_DIR, "locations.json")  # location_id → 倉庫名
 
 
 def load_settings():
     with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
         return json.load(f)
+
 
 def parse_timestamp_from_filename(filename):
     try:
@@ -21,6 +23,7 @@ def parse_timestamp_from_filename(filename):
         return datetime.strptime(name_part, '%Y%m%d%H%M%S')
     except Exception:
         return None
+
 
 def load_nearest_cache(log_time: datetime):
     nearest_ts = None
@@ -47,15 +50,18 @@ def load_nearest_cache(log_time: datetime):
 
     return nearest_ts, nearest_data
 
+
 def load_last_logged_times():
     if os.path.exists(LAST_TIMES_FILE):
         with open(LAST_TIMES_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     return {}
 
+
 def save_last_logged_times(data):
     with open(LAST_TIMES_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f)
+
 
 def should_log_now(log_times):
     now = datetime.now()
@@ -71,11 +77,20 @@ def should_log_now(log_times):
         return True
     return False
 
+
 def load_device_assignments():
     if os.path.exists(ASSIGNMENT_FILE):
         with open(ASSIGNMENT_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
+
+
+def load_locations():
+    if os.path.exists(LOCATION_FILE):
+        with open(LOCATION_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
 
 def log_data():
     print(f"[DEBUG] Attempting to load cache from: {CACHE_DIR}")
@@ -83,7 +98,9 @@ def log_data():
     log_dir = os.path.join(BASE_DIR, settings.get('log_directory', 'logs'))
     os.makedirs(log_dir, exist_ok=True)
     print(f"[DEBUG] Logging to directory: {log_dir}")
-    assignments = load_device_assignments()
+
+    assignments = load_device_assignments()  # device_id → location_id
+    locations = load_locations()  # location_id → 倉庫名
 
     now = datetime.now()
     ts, data = load_nearest_cache(now)
@@ -98,7 +115,9 @@ def log_data():
         temperature = device.get('temperature', '')
         humidity = device.get('humidity', '')
         last_seen = device.get('last_seen', '')
-        warehouse = assignments.get(dev_id, '')  # ← 倉庫名を取得
+
+        loc_id = assignments.get(dev_id, '')
+        warehouse = locations.get(loc_id, f"[未登録:{loc_id}]") if loc_id else "未割当"
 
         log_file = os.path.join(log_dir, f"{dev_id}.csv")
         write_header = not os.path.exists(log_file)
@@ -106,11 +125,12 @@ def log_data():
         try:
             with open(log_file, 'a', encoding='utf-8') as f:
                 if write_header:
-                    f.write("timestamp,temperature,humidity,last_seen,warehouse\n")  # ← ヘッダ追加
-                f.write(f"{timestamp_str},{temperature},{humidity},{last_seen},{warehouse}\n")  # ← 内容追加
+                    f.write("timestamp,temperature,humidity,last_seen,location_id,warehouse\n")
+                f.write(f"{timestamp_str},{temperature},{humidity},{last_seen},{loc_id},{warehouse}\n")
             print(f"[INFO] Logged: {dev_id} at {timestamp_str}")
         except Exception as e:
             print(f"[ERROR] Writing log for {dev_id} failed: {e}")
+
 
 def main():
     print("[DEBUG] cache_logger started")
@@ -128,7 +148,8 @@ def main():
             print("[ERROR] Unexpected error:")
             traceback.print_exc()
 
-        time.sleep(60)  # 毎分チェック
+        time.sleep(60)  # check every minute
+
 
 if __name__ == '__main__':
     main()
