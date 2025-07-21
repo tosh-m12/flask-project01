@@ -119,8 +119,10 @@ def main():
             locations = load_json(LOCATION_FILE, {})
 
             for d in devices:
-                d["location_id"] = assignments.get(d["id"], None)
-                d["warehouse"] = locations.get(d["location_id"], "未割当") if d["location_id"] else "未割当"  # ← 追加
+                dev_id = str(d["id"])
+                location_id = assignments.get(dev_id)
+                d["location_id"] = location_id
+                d["warehouse"] = locations.get(location_id, "未割当") if location_id else "未割当"
 
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
             cache_file = os.path.join(CACHE_DIR, f"device_cache_{timestamp}.json")

@@ -248,8 +248,6 @@ def warehouse_assign():
         assignments_json=json.dumps(assignments, ensure_ascii=False)
     )
 
-
-
 @app.route("/warehouse_names")
 def warehouse_names():
     return redirect(url_for("edit_locations"))
@@ -260,11 +258,12 @@ def all_devices():
     assignments = load_json(ASSIGNMENT_FILE, {})
     locations = load_json(LOCATION_FILE, {})
 
-    # location_id → 倉庫名の辞書を参照してデバイス情報に追加
+    # assignments のキーが文字列であるため、idを文字列化して参照
     for dev in devices:
-        loc_id = assignments.get(dev["id"])
+        dev_id = str(dev.get("id"))
+        loc_id = assignments.get(dev_id)
         dev["location_id"] = loc_id
-        dev["location_name"] = locations.get(loc_id, "未割当")
+        dev["location_name"] = locations.get(loc_id, "未割当") if loc_id else "未割当"
 
     return render_template("all_devices.html", devices=devices,
                            last_updated=dt.strftime("%Y-%m-%d %H:%M:%S") if dt else "N/A")
