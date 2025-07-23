@@ -1,4 +1,5 @@
-from flask import Flask, render_template, jsonify, request, redirect, url_for
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash
+from functools import wraps
 import requests
 import json
 import os
@@ -7,6 +8,10 @@ import sys
 from datetime import datetime
 
 app = Flask(__name__)
+app.secret_key = 'your_secret_key_here'
+
+USERNAME = 'admin'
+PASSWORD = 'ngls1234'
 
 LOGIN_URL = "http://1weilian.com/user/login"
 DATA_URL = "http://1weilian.com/public/realTimeData"
@@ -20,6 +25,15 @@ WAREHOUSE_FILE = os.path.join(BASE_DIR, "warehouses.json")
 LOCATION_FILE = os.path.join(BASE_DIR, "locations.json")
 ASSIGNMENT_HISTORY_FILE = os.path.join(BASE_DIR, "assignment_history.json")
 CACHE_DIR = os.path.join(BASE_DIR, "cache")
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("logged_in"):
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated_function
 
 def login_and_get_token():
     payload = {
@@ -118,6 +132,23 @@ def record_assignment_history(device_id, location_id):
     })
     save_json(ASSIGNMENT_HISTORY_FILE, history)
 
+# ログイン画面
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        if request.form['username'] == USERNAME and request.form['password'] == PASSWORD:
+            session['logged_in'] = True
+            return redirect(url_for('settings'))
+        else:
+            flash('ログイン失敗')
+    return render_template('login.html')
+
+# ログアウト処理
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    return redirect(url_for('login'))
+
 @app.route("/")
 def index():
     dt, devices = load_latest_cache()
@@ -169,6 +200,7 @@ def save_assignment():
     return jsonify({"status": "ok"})
 
 @app.route("/settings", methods=["GET", "POST"])
+@login_required
 def settings():
     settings = load_json(SETTINGS_FILE, {
         "interval": 10,
@@ -190,6 +222,7 @@ def settings():
     return render_template("settings.html", **settings)
 
 @app.route("/locations", methods=["GET", "POST"])
+@login_required
 def edit_locations():
     locations = load_json(LOCATION_FILE, {})
     if request.method == "POST":
@@ -205,6 +238,7 @@ def edit_locations():
     return render_template("locations.html", locations=locations)
 
 @app.route("/warehouse_assign", methods=["GET", "POST"])
+@login_required
 def warehouse_assign():
     token, user_id = login_and_get_token()
     devices = fetch_all_devices(token, user_id)
@@ -249,6 +283,7 @@ def warehouse_assign():
     )
 
 @app.route("/warehouse_names")
+@login_required
 def warehouse_names():
     return redirect(url_for("edit_locations"))
 
